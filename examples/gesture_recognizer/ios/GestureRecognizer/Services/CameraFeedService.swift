@@ -43,11 +43,11 @@ protocol CameraFeedServiceDelegate: AnyObject {
 /**
  This class manages all camera related functionality
  */
-class CameraFeedService: NSObject {
+class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
   /**
    This enum holds the state of the camera initialization.
    */
-  enum CameraConfigurationStatus {
+  enum AVConfigurationStatus {
     case success
     case failed
     case permissionDenied
@@ -78,12 +78,19 @@ class CameraFeedService: NSObject {
 
   // MARK: Instance Variables
   private let session: AVCaptureSession = AVCaptureSession()
+  private var audioEngine = AVAudioEngine()
+  private var audioPlayer = AVAudioPlayerNode()
+  private var audioUnitTimePitch = AVAudioUnitTimePitch()
+    
+    
   private lazy var videoPreviewLayer = AVCaptureVideoPreviewLayer(session: session)
   private let sessionQueue = DispatchQueue(label: "com.google.mediapipe.CameraFeedService.sessionQueue")
   private let cameraPosition: AVCaptureDevice.Position = .front
 
-  private var cameraConfigurationStatus: CameraConfigurationStatus = .failed
+  private var avConfigurationStatus: AVConfigurationStatus = .failed
+  private var microphoneConfigurationStatus: AVConfigurationStatus = .failed
   private lazy var videoDataOutput = AVCaptureVideoDataOutput()
+  private lazy var audioDataOutput = AVCaptureAudioDataOutput()
   private var isSessionRunning = false
   private var imageBufferSize: CGSize?
 
@@ -136,16 +143,16 @@ class CameraFeedService: NSObject {
    This method starts an AVCaptureSession based on whether the camera configuration was successful.
    */
 
-  func startLiveCameraSession(_ completion: @escaping(_ cameraConfiguration: CameraConfigurationStatus) -> Void) {
+  func startLiveCameraSession(_ completion: @escaping(_ cameraConfiguration: AVConfigurationStatus) -> Void) {
     sessionQueue.async {
-      switch self.cameraConfigurationStatus {
+      switch self.avConfigurationStatus {
       case .success:
         self.addObservers()
         self.startSession()
         default:
           break
       }
-      completion(self.cameraConfigurationStatus)
+      completion(self.avConfigurationStatus)
     }
   }
 
@@ -195,17 +202,31 @@ class CameraFeedService: NSObject {
   private func attemptToConfigureSession() {
     switch AVCaptureDevice.authorizationStatus(for: .video) {
     case .authorized:
-      self.cameraConfigurationStatus = .success
+      self.avConfigurationStatus = .success
     case .notDetermined:
       self.sessionQueue.suspend()
       self.requestCameraAccess(completion: { (granted) in
         self.sessionQueue.resume()
       })
     case .denied:
-      self.cameraConfigurationStatus = .permissionDenied
+      self.avConfigurationStatus = .permissionDenied
     default:
       break
     }
+      
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+      case .authorized:
+        self.avConfigurationStatus = .success
+      case .notDetermined:
+        self.sessionQueue.suspend()
+        self.requestMicrophoneAccess(completion: { (granted) in
+          self.sessionQueue.resume()
+        })
+      case .denied:
+        self.avConfigurationStatus = .permissionDenied
+      default:
+        break
+      }
 
     self.sessionQueue.async {
       self.configureSession()
@@ -218,42 +239,70 @@ class CameraFeedService: NSObject {
   private func requestCameraAccess(completion: @escaping (Bool) -> ()) {
     AVCaptureDevice.requestAccess(for: .video) { (granted) in
       if !granted {
-        self.cameraConfigurationStatus = .permissionDenied
+        self.avConfigurationStatus = .permissionDenied
       }
       else {
-        self.cameraConfigurationStatus = .success
+        self.avConfigurationStatus = .success
       }
       completion(granted)
     }
   }
 
-
+    /**
+     This method requests for camera permissions.
+     */
+    private func requestMicrophoneAccess(completion: @escaping (Bool) -> ()) {
+      AVCaptureDevice.requestAccess(for: .audio) { (granted) in
+        if !granted {
+          self.avConfigurationStatus = .permissionDenied
+        }
+        else {
+          self.avConfigurationStatus = .success
+        }
+        completion(granted)
+      }
+    }
+    
   /**
    This method handles all the steps to configure an AVCaptureSession.
    */
   private func configureSession() {
 
-    guard cameraConfigurationStatus == .success else {
+    guard avConfigurationStatus == .success else {
       return
     }
     session.beginConfiguration()
 
-    // Tries to add an AVCaptureDeviceInput.
+    // Tries to add an AVCaptureDeviceInput for video.
     guard addVideoDeviceInput() == true else {
       self.session.commitConfiguration()
-      self.cameraConfigurationStatus = .failed
+      self.avConfigurationStatus = .failed
       return
     }
+      
+    // Tries to add an AVCaptureDeviceInput for audio.
+    guard addAudioDeviceInput() == true else {
+        self.session.commitConfiguration()
+        self.avConfigurationStatus = .failed
+        return
+      }
 
     // Tries to add an AVCaptureVideoDataOutput.
     guard addVideoDataOutput() else {
       self.session.commitConfiguration()
-      self.cameraConfigurationStatus = .failed
+      self.avConfigurationStatus = .failed
+      return
+    }
+      
+    // Tries to add an AVCaptureAudioDataOutput.
+    guard setupAudioPlayback() else {
+      self.session.commitConfiguration()
+      self.avConfigurationStatus = .failed
       return
     }
 
     session.commitConfiguration()
-    self.cameraConfigurationStatus = .success
+    self.avConfigurationStatus = .success
   }
 
   /**
@@ -282,6 +331,31 @@ class CameraFeedService: NSObject {
     }
   }
 
+    /**
+     This method tries to an AVCaptureDeviceInput to the current AVCaptureSession.
+     */
+    private func addAudioDeviceInput() -> Bool {
+
+      /**Tries to get the default microphone.
+       */
+      guard let microphone  = AVCaptureDevice.default(for: .audio) else {
+        return false
+      }
+
+      do {
+        let audioDeviceInput = try AVCaptureDeviceInput(device: microphone)
+        if session.canAddInput(audioDeviceInput) {
+          session.addInput(audioDeviceInput)
+          return true
+        }
+        else {
+          return false
+        }
+      }
+      catch {
+        fatalError("Cannot create audio device input")
+      }
+    }
   /**
    This method tries to an AVCaptureVideoDataOutput to the current AVCaptureSession.
    */
@@ -303,6 +377,41 @@ class CameraFeedService: NSObject {
     }
     return false
   }
+    
+    /**
+     This method tries to an AVCaptureAudioDataOutput to the current AVCaptureSession.
+     */
+//    private func addAudioDataOutput() -> Bool {
+//
+//      let sampleBufferQueue = DispatchQueue(label: "sampleBufferQueue")
+//      audioDataOutput.setSampleBufferDelegate(self, queue: sampleBufferQueue)
+////      audioDataOutput.rec = [
+////        AVFormatIDKey: NSNumber(value: kAudioFormatAppleLossless),
+////        AVSampleRateKey: 16000.0,
+////        AVNumberOfChannelsKey: 1,
+////        AVEncoderAudioQualityKey: AVAudioQuality.min.rawValue
+////    ]
+//      if session.canAddOutput(audioDataOutput) {
+//        session.addOutput(audioDataOutput)
+//        return true
+//      }
+//      return false
+//    }
+    func setupAudioPlayback() -> Bool {
+        audioEngine.attach(audioPlayer)
+        audioEngine.attach(audioUnitTimePitch)
+        
+        audioEngine.connect(audioPlayer, to: audioUnitTimePitch, format: nil)
+        audioEngine.connect(audioUnitTimePitch, to: audioEngine.mainMixerNode, format: nil)
+        
+        do {
+            try audioEngine.start()
+            return true
+        } catch {
+            print("Error starting audio engine: \(error.localizedDescription)")
+            return false
+        }
+    }
 
   // MARK: Notification Observer Handling
   private func addObservers() {

@@ -37,6 +37,11 @@ class CameraViewController: UIViewController {
   private var isObserving = false
   private let backgroundQueue = DispatchQueue(label: "com.google.mediapipe.cameraController.backgroundQueue")
   
+    
+  // SPICE and microphone
+  var audioInterpreter: SPICE?
+  var mic : MicrophoneMonitor?
+
   // MARK: Controllers that manage functionality
   // Handles all the camera related functionality
   private lazy var cameraFeedService = CameraFeedService(previewView: previewView)
@@ -89,6 +94,26 @@ class CameraViewController: UIViewController {
     super.viewDidLoad()
     cameraFeedService.delegate = self
     // Do any additional setup after loading the view.
+    // Initialize SPICE model
+    let modelFileInfo: FileInfo = (name: "2", extension: "tflite")
+    let threadCount = 2
+    let resultCount = 2
+    let threshold: Float = 0.0
+
+    // Inititalize SPICE interpreter
+    self.audioInterpreter = SPICE(
+      modelFileInfo: modelFileInfo,
+      threadCount: threadCount,
+      resultCount: resultCount,
+      scoreThreshold: threshold
+    )
+
+    // Initialize microphone
+    self.mic = MicrophoneMonitor(audioInterpreter: self.audioInterpreter!)
+
+//    // Notification for change of pitch.
+//    NotificationCenter.default.addObserver(self, selector: #selector(shapeAttributeDidChange), name: Notification.Name("AttributeDidChange"), object: nil)
+
   }
   
   override func viewDidAppear(_ animated: Bool) {

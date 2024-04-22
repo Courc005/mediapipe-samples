@@ -7,6 +7,11 @@ target 'GestureRecognizer' do
 
   # Pods for GestureRecognizer
   pod 'MediaPipeTasksVision', '0.10.12'
+  
+  # Pods for SPICE
+  pod 'TensorFlowLiteSwift', '~> 2.14.0', :subspecs => ['CoreML', 'Metal']
+  pod 'TensorFlowLiteTaskAudio', '~> 0.4.3'
+  pod 'TensorFlowLiteSelectTfOps', '~> 0.0.1-nightly'
 
 end
 
