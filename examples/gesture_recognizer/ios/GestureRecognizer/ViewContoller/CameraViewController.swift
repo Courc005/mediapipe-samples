@@ -220,6 +220,30 @@ extension CameraViewController: CameraFeedServiceDelegate {
         timeStamps: Int(currentTimeMs))
     }
   }
+    
+    func didAudioOutput(sampleBuffer: CMSampleBuffer) {
+        let numSamples = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
+        let sampleSize = AVAudioFrameCount(CMSampleBufferGetSampleSize(sampleBuffer, at: 0))
+        let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer)
+        
+//        formatDescription?.audioFormatList
+//        
+//        = [
+//          AVFormatIDKey: NSNumber(value: kAudioFormatAppleLossless),
+//          AVSampleRateKey: 16000.0,
+//          AVNumberOfChannelsKey: 1,
+//          AVEncoderAudioQualityKey: AVAudioQuality.min.rawValue
+//      ]
+
+        // Convert CMSampleBuffer to AVAudioPCMBuffer
+        guard let audioBuffer = AVAudioPCMBuffer(pcmFormat: AVAudioFormat(standardFormatWithSampleRate: 16000.0, channels: 2)!, frameCapacity: numSamples) else {
+            return
+        }
+        CMBlockBufferCopyDataBytes(CMSampleBufferGetDataBuffer(sampleBuffer)!, atOffset: 0, dataLength: Int(numSamples * sampleSize), destination: audioBuffer.mutableAudioBufferList.pointee.mBuffers.mData!)
+        
+        // Process and playback audio buffer with pitch shifting
+        cameraFeedService.playbackWithPitchShift(buffer: audioBuffer)
+    }
   
   // MARK: Session Handling Alerts
   func sessionWasInterrupted(canResumeManually resumeManually: Bool) {

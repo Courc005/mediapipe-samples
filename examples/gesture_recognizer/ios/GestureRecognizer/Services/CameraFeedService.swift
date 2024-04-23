@@ -24,6 +24,11 @@ protocol CameraFeedServiceDelegate: AnyObject {
   func didOutput(sampleBuffer: CMSampleBuffer, orientation: UIImage.Orientation)
 
   /**
+    This method delivers the audio sample buffer of the current frame seen by the device's microphone.
+    */
+  func didAudioOutput(sampleBuffer: CMSampleBuffer)
+
+  /**
    This method initimates that a session runtime error occured.
    */
   func didEncounterSessionRuntimeError()
@@ -43,8 +48,9 @@ protocol CameraFeedServiceDelegate: AnyObject {
 /**
  This class manages all camera related functionality
  */
-class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
-  /**
+class CameraFeedService: NSObject//, AVCaptureAudioDataOutputSampleBufferDelegate
+{
+    /**
    This enum holds the state of the camera initialization.
    */
   enum AVConfigurationStatus {
@@ -81,7 +87,6 @@ class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate 
   private var audioEngine = AVAudioEngine()
   private var audioPlayer = AVAudioPlayerNode()
   private var audioUnitTimePitch = AVAudioUnitTimePitch()
-    
     
   private lazy var videoPreviewLayer = AVCaptureVideoPreviewLayer(session: session)
   private let sessionQueue = DispatchQueue(label: "com.google.mediapipe.CameraFeedService.sessionQueue")
@@ -191,7 +196,7 @@ class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate 
    This method starts the AVCaptureSession
    **/
   private func startSession() {
-    self.session.startRunning()
+      self.session.startRunning()
     self.isSessionRunning = self.session.isRunning
   }
 
@@ -286,6 +291,12 @@ class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate 
         self.avConfigurationStatus = .failed
         return
       }
+      
+    guard setupAudioPlayback() else {
+      self.session.commitConfiguration()
+      self.avConfigurationStatus = .failed
+      return
+    }
 
     // Tries to add an AVCaptureVideoDataOutput.
     guard addVideoDataOutput() else {
@@ -295,10 +306,10 @@ class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate 
     }
       
     // Tries to add an AVCaptureAudioDataOutput.
-    guard setupAudioPlayback() else {
-      self.session.commitConfiguration()
-      self.avConfigurationStatus = .failed
-      return
+    guard addAudioDataOutput() else {
+        self.session.commitConfiguration()
+        self.avConfigurationStatus = .failed
+        return
     }
 
     session.commitConfiguration()
@@ -381,22 +392,24 @@ class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate 
     /**
      This method tries to an AVCaptureAudioDataOutput to the current AVCaptureSession.
      */
-//    private func addAudioDataOutput() -> Bool {
-//
-//      let sampleBufferQueue = DispatchQueue(label: "sampleBufferQueue")
-//      audioDataOutput.setSampleBufferDelegate(self, queue: sampleBufferQueue)
-////      audioDataOutput.rec = [
-////        AVFormatIDKey: NSNumber(value: kAudioFormatAppleLossless),
-////        AVSampleRateKey: 16000.0,
-////        AVNumberOfChannelsKey: 1,
-////        AVEncoderAudioQualityKey: AVAudioQuality.min.rawValue
-////    ]
-//      if session.canAddOutput(audioDataOutput) {
-//        session.addOutput(audioDataOutput)
-//        return true
-//      }
-//      return false
-//    }
+    private func addAudioDataOutput() -> Bool {
+
+      let sampleBufferQueue = DispatchQueue(label: "audioSampleBufferQueue")
+      //      audioDataOutput.rec = [
+//        AVFormatIDKey: NSNumber(value: kAudioFormatAppleLossless),
+//        AVSampleRateKey: 16000.0,
+//        AVNumberOfChannelsKey: 1,
+//        AVEncoderAudioQualityKey: AVAudioQuality.min.rawValue
+//    ]
+      if session.canAddOutput(audioDataOutput) {
+        audioDataOutput.setSampleBufferDelegate(self, queue: sampleBufferQueue)
+        audioDataOutput.connection(with: .audio)?.isEnabled = true
+        session.addOutput(audioDataOutput)
+        return true
+      }
+      return false
+    }
+
     func setupAudioPlayback() -> Bool {
         audioEngine.attach(audioPlayer)
         audioEngine.attach(audioUnitTimePitch)
@@ -404,6 +417,7 @@ class CameraFeedService: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate 
         audioEngine.connect(audioPlayer, to: audioUnitTimePitch, format: nil)
         audioEngine.connect(audioUnitTimePitch, to: audioEngine.mainMixerNode, format: nil)
         
+        audioEngine.prepare()
         do {
             try audioEngine.start()
             return true
@@ -481,12 +495,67 @@ extension CameraFeedService: AVCaptureVideoDataOutputSampleBufferDelegate {
 
   /** This method delegates the CVPixelBuffer of the frame seen by the camera currently.
    */
-  func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-      let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer)!
-      if (imageBufferSize == nil) {
-        imageBufferSize = CGSize(width: CVPixelBufferGetHeight(imageBuffer), height: CVPixelBufferGetWidth(imageBuffer))
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        
+        switch output
+        {
+        case is AVCaptureVideoDataOutput:
+            guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                return
+            }
+            //      let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer)!
+            if (imageBufferSize == nil) {
+                imageBufferSize = CGSize(width: CVPixelBufferGetHeight(imageBuffer), height: CVPixelBufferGetWidth(imageBuffer))
+            }
+            delegate?.didOutput(sampleBuffer: sampleBuffer, orientation: UIImage.Orientation.from(deviceOrientation: UIDevice.current.orientation))
+        case is AVCaptureAudioDataOutput:
+            // Synchronize the Audio Buffer with the Video Session's time because it's two separate AVCaptureSessions
+            guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+                return
+            }
+
+            delegate?.didAudioOutput(sampleBuffer: sampleBuffer)
+        default:
+            break
+        }
+    }
+}
+
+extension CameraFeedService: AVCaptureAudioDataOutputSampleBufferDelegate {
+
+  /// AVCaptureAudioDataOutputSampleBufferDelegate method
+    func captureAudioOutput(_ output: AVCaptureOutput, didOutput audioSampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let formatDescription = CMSampleBufferGetFormatDescription(audioSampleBuffer) else {
+            return
+        }
+
+        delegate?.didAudioOutput(sampleBuffer: audioSampleBuffer)
+    }
+    func playbackWithPitchShift(buffer: AVAudioPCMBuffer) {
+        audioPlayer.scheduleBuffer(buffer, at: nil)
+      
+      // Apply pitch shift
+//      let pitchShift = 12.0 // 12 semitones = 1 octave
+//      audioUnitTimePitch.pitch = Float(pitchShift)
+      
+      do
+      {
+        // Start the AVAudioEngine if it's not already running
+        if !audioEngine.isRunning {
+            try audioEngine.start()
+        }
+          
+          print(buffer.floatChannelData![0])
+        
+        // Play audio only if the engine is running
+        if audioEngine.isRunning {
+            audioPlayer.play()
+        } else {
+            print("AVAudioEngine is not running.")
+        }
+      } catch {
+              print("Error starting AVAudioEngine: \(error.localizedDescription)")
       }
-    delegate?.didOutput(sampleBuffer: sampleBuffer, orientation: UIImage.Orientation.from(deviceOrientation: UIDevice.current.orientation))
   }
 }
 
