@@ -95,21 +95,21 @@ class CameraViewController: UIViewController {
     cameraFeedService.delegate = self
     // Do any additional setup after loading the view.
     // Initialize SPICE model
-    let modelFileInfo: FileInfo = (name: "2", extension: "tflite")
-    let threadCount = 2
-    let resultCount = 2
-    let threshold: Float = 0.0
-
-    // Inititalize SPICE interpreter
-    self.audioInterpreter = SPICE(
-      modelFileInfo: modelFileInfo,
-      threadCount: threadCount,
-      resultCount: resultCount,
-      scoreThreshold: threshold
-    )
+//    let modelFileInfo: FileInfo = (name: "2", extension: "tflite")
+//    let threadCount = 2
+//    let resultCount = 2
+//    let threshold: Float = 0.0
+//
+//    // Inititalize SPICE interpreter
+//    self.audioInterpreter = SPICE(
+//      modelFileInfo: modelFileInfo,
+//      threadCount: threadCount,
+//      resultCount: resultCount,
+//      scoreThreshold: threshold
+//    )
 
     // Initialize microphone
-    self.mic = MicrophoneMonitor(audioInterpreter: self.audioInterpreter!)
+//    self.mic = MicrophoneMonitor(audioInterpreter: self.audioInterpreter!)
 
 //    // Notification for change of pitch.
 //    NotificationCenter.default.addObserver(self, selector: #selector(shapeAttributeDidChange), name: Notification.Name("AttributeDidChange"), object: nil)
@@ -221,6 +221,37 @@ extension CameraViewController: CameraFeedServiceDelegate {
     }
   }
     
+    enum AudioBufferError: Error {
+        case bufferRetrieveError
+        case fileFormatError
+        case audioFileNotFound
+    }
+    
+    private static func getBuffer(fileURL: URL) -> AVAudioPCMBuffer? {
+        let file: AVAudioFile!
+        do {
+            try file = AVAudioFile(forReading: fileURL)
+        } catch {
+            print("Could not load file: \(error)")
+            return nil
+        }
+        file.framePosition = 0
+        
+        // Add 100 ms to the capacity.
+        let bufferCapacity = AVAudioFrameCount(file.length)
+                + AVAudioFrameCount(file.processingFormat.sampleRate * 0.1)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                            frameCapacity: bufferCapacity) else { return nil }
+        do {
+            try file.read(into: buffer)
+        } catch {
+            print("Could not load file into buffer: \(error)")
+            return nil
+        }
+        file.framePosition = 0
+        return buffer
+    }
+    
     func didAudioOutput(sampleBuffer: CMSampleBuffer) {
         let numSamples = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
         let sampleSize = AVAudioFrameCount(CMSampleBufferGetSampleSize(sampleBuffer, at: 0))
@@ -241,8 +272,12 @@ extension CameraViewController: CameraFeedServiceDelegate {
         }
         CMBlockBufferCopyDataBytes(CMSampleBufferGetDataBuffer(sampleBuffer)!, atOffset: 0, dataLength: Int(numSamples * sampleSize), destination: audioBuffer.mutableAudioBufferList.pointee.mBuffers.mData!)
         
+        guard let speechURL = Bundle.main.url(forResource: "sampleVoice8kHz", withExtension: "wav") else { return }
+        guard let tempSpeechBuffer = CameraViewController.getBuffer(fileURL: speechURL) else { return }
+        let speechBuffer = tempSpeechBuffer
+        
         // Process and playback audio buffer with pitch shifting
-        cameraFeedService.playbackWithPitchShift(buffer: audioBuffer)
+        cameraFeedService.playbackWithPitchShift(buffer: speechBuffer)//audioBuffer)
     }
   
   // MARK: Session Handling Alerts

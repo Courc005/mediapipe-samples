@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		3FD872F9C15E99D079778F5B /* libPods-GestureRecognizerTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D2F94D163E413BA59A5DA2F7 /* libPods-GestureRecognizerTests.a */; };
+		68516ACD2BDBA7E000833E9F /* sampleVoice8kHz.wav in Resources */ = {isa = PBXBuildFile; fileRef = 68516ACC2BDBA7E000833E9F /* sampleVoice8kHz.wav */; };
 		687793072BD65A6C002B47B6 /* Microphone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687793062BD65A6C002B47B6 /* Microphone.swift */; };
 		687793092BD65A93002B47B6 /* SPICE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687793082BD65A93002B47B6 /* SPICE.swift */; };
 		6877930B2BD65E38002B47B6 /* 2.tflite in Resources */ = {isa = PBXBuildFile; fileRef = 6877930A2BD65E38002B47B6 /* 2.tflite */; };
@@ -45,6 +46,7 @@
 		11F5A9E84CDB54B828F1E12E /* Pods_GestureRecognizer.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_GestureRecognizer.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		371590ADE199593CF07CCA08 /* Pods-GestureRecognizerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GestureRecognizerTests.debug.xcconfig"; path = "Target Support Files/Pods-GestureRecognizerTests/Pods-GestureRecognizerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		3B2C656DB80563A24D34BE36 /* Pods-GestureRecognizerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GestureRecognizerTests.release.xcconfig"; path = "Target Support Files/Pods-GestureRecognizerTests/Pods-GestureRecognizerTests.release.xcconfig"; sourceTree = "<group>"; };
+		68516ACC2BDBA7E000833E9F /* sampleVoice8kHz.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = sampleVoice8kHz.wav; sourceTree = "<group>"; };
 		687793062BD65A6C002B47B6 /* Microphone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Microphone.swift; sourceTree = "<group>"; };
 		687793082BD65A93002B47B6 /* SPICE.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SPICE.swift; sourceTree = "<group>"; };
 		6877930A2BD65E38002B47B6 /* 2.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = 2.tflite; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 		BF5EECB22AB801F200189276 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				68516ACC2BDBA7E000833E9F /* sampleVoice8kHz.wav */,
 				BF5EECB32AB801F200189276 /* GestureRecognizerService.swift */,
 				BF5EECB42AB801F200189276 /* CameraFeedService.swift */,
 				687793062BD65A6C002B47B6 /* Microphone.swift */,
@@ -287,6 +290,7 @@
 			files = (
 				BF5EEC822AB7FDE700189276 /* LaunchScreen.storyboard in Resources */,
 				BF5EEC7F2AB7FDE700189276 /* Assets.xcassets in Resources */,
+				68516ACD2BDBA7E000833E9F /* sampleVoice8kHz.wav in Resources */,
 				BF5EECA92AB8011E00189276 /* gesture_recognizer.task in Resources */,
 				6877930B2BD65E38002B47B6 /* 2.tflite in Resources */,
 				BF5EEC7D2AB7FDE600189276 /* Main.storyboard in Resources */,

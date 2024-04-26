@@ -292,7 +292,7 @@ class CameraFeedService: NSObject//, AVCaptureAudioDataOutputSampleBufferDelegat
         return
       }
       
-    guard setupAudioPlayback() else {
+      guard setupAudioPlayback(format: nil) else {
       self.session.commitConfiguration()
       self.avConfigurationStatus = .failed
       return
@@ -410,15 +410,25 @@ class CameraFeedService: NSObject//, AVCaptureAudioDataOutputSampleBufferDelegat
       return false
     }
 
-    func setupAudioPlayback() -> Bool {
+    func setupAudioPlayback(format: AVAudioFormat?) -> Bool {
+        // Reinitialize audioEngine
+        audioEngine = AVAudioEngine()
+
         audioEngine.attach(audioPlayer)
         audioEngine.attach(audioUnitTimePitch)
         
-        audioEngine.connect(audioPlayer, to: audioUnitTimePitch, format: nil)
-        audioEngine.connect(audioUnitTimePitch, to: audioEngine.mainMixerNode, format: nil)
+        audioEngine.connect(audioPlayer, to: audioUnitTimePitch, format: format)
+        audioEngine.connect(audioUnitTimePitch, to: audioEngine.mainMixerNode, format: format)
+        // Connect the player node to the output node.
+        audioEngine.connect(audioEngine.mainMixerNode,
+                            to: audioEngine.outputNode,
+                            format: format)
         
         audioEngine.prepare()
         do {
+            // Enable voice processing to prevent microphone from picking up feedback from speakers.
+//            try audioEngine.inputNode.setVoiceProcessingEnabled(true)
+        
             try audioEngine.start()
             return true
         } catch {
@@ -528,24 +538,29 @@ extension CameraFeedService: AVCaptureAudioDataOutputSampleBufferDelegate {
         guard let formatDescription = CMSampleBufferGetFormatDescription(audioSampleBuffer) else {
             return
         }
-
+        
         delegate?.didAudioOutput(sampleBuffer: audioSampleBuffer)
     }
+    
     func playbackWithPitchShift(buffer: AVAudioPCMBuffer) {
-        audioPlayer.scheduleBuffer(buffer, at: nil)
-      
-      // Apply pitch shift
-//      let pitchShift = 12.0 // 12 semitones = 1 octave
-//      audioUnitTimePitch.pitch = Float(pitchShift)
-      
       do
       {
-        // Start the AVAudioEngine if it's not already running
-        if !audioEngine.isRunning {
-            try audioEngine.start()
-        }
+//        // Start the AVAudioEngine if it's not already running
+//        if !audioEngine.isRunning {
+//            try audioEngine.start()
+//        }
           
-          print(buffer.floatChannelData![0])
+          setupAudioPlayback(format: buffer.format)
+
+//          voiceIOFormat = speechBuffer.format
+          audioPlayer.scheduleBuffer(buffer, at: nil)
+        
+        // Apply pitch shift
+  //      let pitchShift = 12.0 // 12 semitones = 1 octave
+  //      audioUnitTimePitch.pitch = Float(pitchShift)
+          let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count:Int(buffer.frameLength)))
+          
+//          print(samples[0])
         
         // Play audio only if the engine is running
         if audioEngine.isRunning {
