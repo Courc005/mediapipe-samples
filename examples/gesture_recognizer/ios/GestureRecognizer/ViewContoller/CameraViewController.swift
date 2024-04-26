@@ -60,6 +60,8 @@ class CameraViewController: UIViewController {
       }
     }
   }
+    
+    private var audioEngine: AudioEngine!
 
 #if !targetEnvironment(simulator)
   override func viewWillAppear(_ animated: Bool) {
@@ -85,11 +87,132 @@ class CameraViewController: UIViewController {
     clearGestureRecognizerServiceOnSessionInterruption()
   }
   
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    cameraFeedService.delegate = self
-    // Do any additional setup after loading the view.
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        cameraFeedService.delegate = self
+        // Do any additional setup after loading the view.
+        setupAudioEngine()
+        
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(self.handleInterruption(_:)),
+                                               name: AVAudioSession.interruptionNotification,
+                                               object: AVAudioSession.sharedInstance())
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(self.handleRouteChange(_:)),
+                                               name: AVAudioSession.routeChangeNotification,
+                                               object: AVAudioSession.sharedInstance())
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(self.handleMediaServicesWereReset(_:)),
+                                               name: AVAudioSession.mediaServicesWereResetNotification,
+                                               object: AVAudioSession.sharedInstance())
+        
+        audioEngine?.checkEngineIsRunning()
+        audioEngine?.togglePlaying()
+    }
+  
+  func setupAudioSession(sampleRate: Double) {
+      let session = AVAudioSession.sharedInstance()
+
+      do {
+          try session.setCategory(.playback)
+//          try session.setCategory(.playAndRecord, options: .defaultToSpeaker)
+      } catch {
+          print("Could not set the audio category: \(error.localizedDescription)")
+      }
+
+      do {
+          try session.setPreferredSampleRate(sampleRate)
+      } catch {
+          print("Could not set the preferred sample rate: \(error.localizedDescription)")
+      }
   }
+  
+  func setupAudioEngine() {
+      do {
+          audioEngine = try AudioEngine()
+
+          setupAudioSession(sampleRate: audioEngine.voiceIOFormat.sampleRate)
+
+          audioEngine.setup()
+          audioEngine.start()
+      } catch {
+          fatalError("Could not set up the audio engine: \(error)")
+      }
+  }
+    
+    func resetAudioEngine() {
+        audioEngine = nil
+    }
+    
+    @objc
+    func handleInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+            let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+            let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+        
+        switch type {
+        case .began:
+            // Interruption begins so you need to take appropriate actions.
+
+            audioEngine?.stopRecordingAndPlayers()
+            
+        case .ended:
+            do {
+                try AVAudioSession.sharedInstance().setActive(true)
+            } catch {
+                print("Could not set the audio session to active: \(error)")
+            }
+            
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    // Interruption ends. Resume playback.
+                } else {
+                    // Interruption ends. Don't resume playback.
+                }
+            }
+        @unknown default:
+            fatalError("Unknown type: \(type)")
+        }
+    }
+    
+    @objc
+    func handleRouteChange(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+            let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+            let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue),
+            let routeDescription = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription else { return }
+        switch reason {
+        case .newDeviceAvailable:
+            print("newDeviceAvailable")
+        case .oldDeviceUnavailable:
+            print("oldDeviceUnavailable")
+        case .categoryChange:
+            print("categoryChange")
+            print("New category: \(AVAudioSession.sharedInstance().category)")
+        case .override:
+            print("override")
+        case .wakeFromSleep:
+            print("wakeFromSleep")
+        case .noSuitableRouteForCategory:
+            print("noSuitableRouteForCategory")
+        case .routeConfigurationChange:
+            print("routeConfigurationChange")
+        case .unknown:
+            print("unknown")
+        @unknown default:
+            fatalError("Really unknown reason: \(reason)")
+        }
+        
+        print("Previous route:\n\(routeDescription)")
+        print("Current route:\n\(AVAudioSession.sharedInstance().currentRoute)")
+    }
+    
+    @objc
+    func handleMediaServicesWereReset(_ notification: Notification) {
+        resetAudioEngine()
+        setupAudioEngine()
+    }
   
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
