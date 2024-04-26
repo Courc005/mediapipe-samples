@@ -62,6 +62,7 @@ class CameraViewController: UIViewController {
   }
     
     private var audioEngine: AudioEngine!
+    private var gestureRecognizerResultCopy : GestureRecognizerResult?
 
 #if !targetEnvironment(simulator)
   override func viewWillAppear(_ animated: Bool) {
@@ -107,15 +108,41 @@ class CameraViewController: UIViewController {
                                                object: AVAudioSession.sharedInstance())
         
         audioEngine?.checkEngineIsRunning()
-        audioEngine?.togglePlaying()
+        
+//        let playRecordTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true)
+//        {
+//            timer in
+//            self.audioEngine?.checkEngineIsRunning()
+//            self.audioEngine?.toggleRecording()
+//            self.audioEngine?.togglePlaying()
+//        }?
+        //        audioEngine?.togglePlaying()
+        
+        let playRecordTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true)
+        {_ in
+            let gestureLabel = self.gestureRecognizerResultCopy?.gestures.first?.first?.categoryName
+            print(gestureLabel ?? "--")
+            if (gestureLabel == "Thumb_Up")
+            {
+                self.audioEngine?.checkEngineIsRunning()
+                self.audioEngine?.toggleRecording()
+            }
+            
+            if (gestureLabel == "Thumb_Down")
+            {
+                self.audioEngine?.checkEngineIsRunning()
+                self.audioEngine?.togglePlaying()
+            }
+        }
+
     }
   
   func setupAudioSession(sampleRate: Double) {
       let session = AVAudioSession.sharedInstance()
 
       do {
-          try session.setCategory(.playback)
-//          try session.setCategory(.playAndRecord, options: .defaultToSpeaker)
+//          try session.setCategory(.playback)
+          try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
       } catch {
           print("Could not set the audio category: \(error.localizedDescription)")
       }
@@ -356,6 +383,9 @@ extension CameraViewController: GestureRecognizerServiceLiveStreamDelegate {
         guard let weakSelf = self else { return }
         weakSelf.inferenceResultDeliveryDelegate?.didPerformInference(result: result, index: 0)
         guard let gestureRecognizerResult = result?.gestureRecognizerResults.first as? GestureRecognizerResult else { return }
+          
+        //Copy result
+          self?.gestureRecognizerResultCopy = gestureRecognizerResult
         let imageSize = weakSelf.cameraFeedService.videoResolution
         let handOverlays = OverlayView.handOverlays(
           fromLandmarks: gestureRecognizerResult.landmarks,

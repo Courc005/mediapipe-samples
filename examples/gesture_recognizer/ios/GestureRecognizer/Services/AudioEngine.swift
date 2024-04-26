@@ -10,9 +10,10 @@ import Foundation
 
 class AudioEngine {
 
-    private var recordedFileURL = URL(fileURLWithPath: "input.caf", isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory()))
+    private var recordedFileURL = URL(fileURLWithPath: "input.mic", isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory()))
     private var recordedFilePlayer = AVAudioPlayerNode()
     private var avAudioEngine = AVAudioEngine()
+    private var audioUnitTimePitch = AVAudioUnitTimePitch()
 //    private var fxPlayer = AVAudioPlayerNode()
 //    private var fxBuffer: AVAudioPCMBuffer
     private var speechPlayer = AVAudioPlayerNode()
@@ -32,8 +33,8 @@ class AudioEngine {
 
     init() throws {
 //        avAudioEngine.attach(fxPlayer)
-        avAudioEngine.attach(speechPlayer)
-//        avAudioEngine.attach(recordedFilePlayer)
+//        avAudioEngine.attach(speechPlayer)
+        avAudioEngine.attach(recordedFilePlayer)
         print("Record file URL: \(recordedFileURL.absoluteString)")
 
         guard let speechURL = Bundle.main.url(forResource: "sampleVoice8kHz", withExtension: "wav") else { throw AudioEngineError.audioFileNotFound }
@@ -90,22 +91,39 @@ class AudioEngine {
     }
 
     func setup() {
-//        let input = avAudioEngine.inputNode
-//        do {
-//            try input.setVoiceProcessingEnabled(true)
-//        } catch {
-//            print("Could not enable voice processing \(error)")
-//            return
-//        }
+        let input = avAudioEngine.inputNode
+        do {
+            try input.setVoiceProcessingEnabled(true)
+        } catch {
+            print("Could not enable voice processing \(error)")
+            return
+        }
 
         let output = avAudioEngine.outputNode
         let mainMixer = avAudioEngine.mainMixerNode
-
-//        avAudioEngine.connect(fxPlayer, to: mainMixer, format: fxBuffer.format)
-        avAudioEngine.connect(speechPlayer, to: mainMixer, format: speechBuffer.format)
+        
+        avAudioEngine.attach(audioUnitTimePitch)
+                
 //        avAudioEngine.connect(recordedFilePlayer, to: mainMixer, format: voiceIOFormat)
+        avAudioEngine.connect(recordedFilePlayer, to: audioUnitTimePitch, format: voiceIOFormat)
+        avAudioEngine.connect(audioUnitTimePitch, to: mainMixer, format: voiceIOFormat)
+
         avAudioEngine.connect(mainMixer, to: output, format: voiceIOFormat)
 
+            
+        input.installTap(onBus: 0, bufferSize: 256, format: voiceIOFormat)
+        { buffer, when in
+//            if self.isRecording {
+                do {
+                    try self.recordedFile?.write(from: buffer)
+                } catch {
+                    print("Could not write buffer: \(error)")
+                }
+//                self.voiceIOPowerMeter.process(buffer: buffer)
+//            } else {
+//                self.voiceIOPowerMeter.processSilence()
+//            }
+        }
         avAudioEngine.prepare()
     }
 
@@ -126,6 +144,23 @@ class AudioEngine {
     func bypassVoiceProcessing(_ bypass: Bool) {
         let input = avAudioEngine.inputNode
         input.isVoiceProcessingBypassed = bypass
+    }
+    
+    func toggleRecording() {
+        if isRecording {
+            isRecording = false
+            recordedFile = nil // Close the file.
+        } else {
+            recordedFilePlayer.stop()
+
+            do {
+                recordedFile = try AVAudioFile(forWriting: recordedFileURL, settings: fileFormat.settings)
+                isNewRecordingAvailable = true
+                isRecording = true
+            } catch {
+                print("Could not create file for recording: \(error)")
+            }
+        }
     }
 
     func stopRecordingAndPlayers() {
@@ -150,19 +185,21 @@ class AudioEngine {
     }
 
     func togglePlaying() {
-//        if recordedFilePlayer.isPlaying {
-//            recordedFilePlayer.pause()
-//        } else {
-//            if isNewRecordingAvailable {
-//                guard let recordedBuffer = AudioEngine.getBuffer(fileURL: recordedFileURL) else { return }
-//                recordedFilePlayer.scheduleBuffer(recordedBuffer, at: nil, options: .loops)
-//                isNewRecordingAvailable = false
-//            }
-//            recordedFilePlayer.play()
-        speechPlayerPlay(true)
+        if recordedFilePlayer.isPlaying {
+            recordedFilePlayer.pause()
+        } else {
+            if isNewRecordingAvailable {
+                audioUnitTimePitch.pitch = Float(1200)
+                guard let recordedBuffer = AudioEngine.getBuffer(fileURL: recordedFileURL) else { return }
+                recordedFilePlayer.scheduleBuffer(recordedBuffer, at: nil, options: .loops)
+                isNewRecordingAvailable = false
+            }
+            recordedFilePlayer.play()
 
 //            fxPlayer.stop()
-//            speechPlayer.stop()
-//        }
+            speechPlayer.stop()
+        }
+        
+//        speechPlayerPlay(true)
     }
 }
