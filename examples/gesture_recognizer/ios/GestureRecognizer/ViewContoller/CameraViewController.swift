@@ -109,39 +109,53 @@ class CameraViewController: UIViewController {
         
         audioEngine?.checkEngineIsRunning()
         
-//        let playRecordTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true)
-//        {
-//            timer in
-//            self.audioEngine?.checkEngineIsRunning()
-//            self.audioEngine?.toggleRecording()
-//            self.audioEngine?.togglePlaying()
-//        }?
-        //        audioEngine?.togglePlaying()
-        
-        let playRecordTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true)
+        _ = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true)
         {_ in
             let gestureLabel = self.gestureRecognizerResultCopy?.gestures.first?.first?.categoryName
-            print(gestureLabel ?? "--")
-            if (gestureLabel == "Thumb_Up")
+//            print(gestureLabel ?? "--")
+            if (gestureLabel == "Pointing_Up")
             {
                 self.audioEngine?.checkEngineIsRunning()
-                self.audioEngine?.toggleRecording()
+                self.audioEngine?.setRecordingState(true)
+                self.audioEngine?.setVoicePlayerState(true)
             }
             
-            if (gestureLabel == "Thumb_Down")
+            if (gestureLabel == "Closed_Fist")
             {
                 self.audioEngine?.checkEngineIsRunning()
-                self.audioEngine?.togglePlaying()
+                self.audioEngine?.stopRecordingAndPlayers()
+            }
+
+            if (self.audioEngine?.isPlayingVoice == true)
+            {
+                if (gestureLabel == "Thumbs_Up")
+                {
+                    // Major
+                    self.audioEngine?.setHarmonyPlayerState(true)
+                }
+                else if (gestureLabel == "Thumbs_Down")
+                {
+                    // Minor
+                    self.audioEngine?.setHarmonyPlayerState(true)
+                }
+                else if (gestureLabel == "Open_Palm")
+                {
+                    // Diminished
+                    self.audioEngine?.setHarmonyPlayerState(true)
+                }
+                else if (gestureLabel == "Victory")
+                {
+                    // Dominant
+                    self.audioEngine?.setHarmonyPlayerState(true)
+                }
             }
         }
-
     }
   
   func setupAudioSession(sampleRate: Double) {
       let session = AVAudioSession.sharedInstance()
 
       do {
-//          try session.setCategory(.playback)
           try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
       } catch {
           print("Could not set the audio category: \(error.localizedDescription)")
@@ -180,7 +194,6 @@ class CameraViewController: UIViewController {
         switch type {
         case .began:
             // Interruption begins so you need to take appropriate actions.
-
             audioEngine?.stopRecordingAndPlayers()
             
         case .ended:

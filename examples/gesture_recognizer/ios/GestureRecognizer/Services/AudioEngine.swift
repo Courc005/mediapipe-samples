@@ -11,19 +11,26 @@ import Foundation
 class AudioEngine {
 
     private var recordedFileURL = URL(fileURLWithPath: "input.mic", isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory()))
-    private var recordedFilePlayer = AVAudioPlayerNode()
+
+    // AV Audio player for the recorder voice input
+    private var voiceBuffer =  AVAudioPCMBuffer()
+    private var voicePlayer = AVAudioPlayerNode()
+
+    // AV Audio player for the other chord degrees (TODO: Should be an array in the end)
+    private var harmoniesBuffer = AVAudioPCMBuffer()
+    private var harmoniesPlayer = AVAudioPlayerNode()
+    private var harmoniesMixer = AVAudioMixerNode()
+
     private var avAudioEngine = AVAudioEngine()
     private var audioUnitTimePitch = AVAudioUnitTimePitch()
-//    private var fxPlayer = AVAudioPlayerNode()
-//    private var fxBuffer: AVAudioPCMBuffer
-    private var speechPlayer = AVAudioPlayerNode()
-    private var speechBuffer: AVAudioPCMBuffer
+
     private var isNewRecordingAvailable = false
-    private var fileFormat: AVAudioFormat
     private var recordedFile: AVAudioFile?
 
     public private(set) var voiceIOFormat: AVAudioFormat
     public private(set) var isRecording = false
+    public private(set) var isPlayingVoice = false
+    public private(set) var isPlayingHarmonies = false
 
     enum AudioEngineError: Error {
         case bufferRetrieveError
@@ -31,28 +38,22 @@ class AudioEngine {
         case audioFileNotFound
     }
 
-    init() throws {
-//        avAudioEngine.attach(fxPlayer)
-//        avAudioEngine.attach(speechPlayer)
-        avAudioEngine.attach(recordedFilePlayer)
+    enum ChordType: Error
+    {
+        case bufferRetrieveError
+        case fileFormatError
+        case audioFileNotFound
+    }
+
+    init() throws
+    {
         print("Record file URL: \(recordedFileURL.absoluteString)")
 
-        guard let speechURL = Bundle.main.url(forResource: "sampleVoice8kHz", withExtension: "wav") else { throw AudioEngineError.audioFileNotFound }
-        guard let tempSpeechBuffer = AudioEngine.getBuffer(fileURL: speechURL) else { throw AudioEngineError.bufferRetrieveError }
-        speechBuffer = tempSpeechBuffer
+        voiceIOFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                      sampleRate: 16000,
+                                      channels: 1,
+                                      interleaved: true)!
 
-        voiceIOFormat = speechBuffer.format
-
-        print("Voice IO format: \(String(describing: voiceIOFormat))")
-        guard let tempFileFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
-                                   sampleRate: voiceIOFormat.sampleRate,
-                                   channels: voiceIOFormat.channelCount,
-                                   interleaved: true) else { throw AudioEngineError.fileFormatError }
-        fileFormat = tempFileFormat
-
-//        guard let fxURL = Bundle.main.url(forResource: "Synth", withExtension: "aif") else { throw AudioEngineError.audioFileNotFound }
-//        guard let tempFxBuffer = AudioEngine.getBuffer(fileURL: fxURL) else { throw AudioEngineError.bufferRetrieveError }
-//        fxBuffer = tempFxBuffer
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(configChanged(_:)),
@@ -61,15 +62,19 @@ class AudioEngine {
     }
 
     @objc
-    func configChanged(_ notification: Notification) {
+    func configChanged(_ notification: Notification)
+    {
         checkEngineIsRunning()
     }
 
-    private static func getBuffer(fileURL: URL) -> AVAudioPCMBuffer? {
+    private static func getBuffer(fileURL: URL) -> AVAudioPCMBuffer?
+    {
         let file: AVAudioFile!
-        do {
+        do
+        {
             try file = AVAudioFile(forReading: fileURL)
-        } catch {
+        } catch
+        {
             print("Could not load file: \(error)")
             return nil
         }
@@ -80,9 +85,11 @@ class AudioEngine {
                 + AVAudioFrameCount(file.processingFormat.sampleRate * 0.1)
         guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
                                             frameCapacity: bufferCapacity) else { return nil }
-        do {
+        do
+        {
             try file.read(into: buffer)
-        } catch {
+        } catch
+        {
             print("Could not load file into buffer: \(error)")
             return nil
         }
@@ -90,116 +97,114 @@ class AudioEngine {
         return buffer
     }
 
-    func setup() {
+    func setup()
+    {
         let input = avAudioEngine.inputNode
-        do {
+        do
+        {
             try input.setVoiceProcessingEnabled(true)
-        } catch {
+        } catch
+        {
             print("Could not enable voice processing \(error)")
             return
         }
 
         let output = avAudioEngine.outputNode
         let mainMixer = avAudioEngine.mainMixerNode
-        
+
+
+        avAudioEngine.attach(harmoniesPlayer)
+        avAudioEngine.attach(harmoniesMixer)
         avAudioEngine.attach(audioUnitTimePitch)
-                
-//        avAudioEngine.connect(recordedFilePlayer, to: mainMixer, format: voiceIOFormat)
-        avAudioEngine.connect(recordedFilePlayer, to: audioUnitTimePitch, format: voiceIOFormat)
-        avAudioEngine.connect(audioUnitTimePitch, to: mainMixer, format: voiceIOFormat)
+        avAudioEngine.attach(voicePlayer)
+
+        avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch, format: voiceIOFormat)
+        avAudioEngine.connect(audioUnitTimePitch, to: harmoniesMixer, format: voiceIOFormat)
+
+        avAudioEngine.connect(voicePlayer, to: mainMixer, format: voiceIOFormat)
+        avAudioEngine.connect(harmoniesMixer, to: mainMixer, format: voiceIOFormat)
 
         avAudioEngine.connect(mainMixer, to: output, format: voiceIOFormat)
 
-            
-        input.installTap(onBus: 0, bufferSize: 256, format: voiceIOFormat)
-        { buffer, when in
-//            if self.isRecording {
-                do {
-                    try self.recordedFile?.write(from: buffer)
-                } catch {
-                    print("Could not write buffer: \(error)")
-                }
-//                self.voiceIOPowerMeter.process(buffer: buffer)
-//            } else {
-//                self.voiceIOPowerMeter.processSilence()
-//            }
+        mainMixer.volume  = 1.0
+
+        input.installTap(onBus: 0, bufferSize: 1024, format: voiceIOFormat)
+        {
+            buffer, when in
+                self.voiceBuffer = buffer
+                self.voicePlayerPlay()
+                self.harmoniesPlayerPlay()
+
         }
         avAudioEngine.prepare()
     }
 
-    func start() {
-        do {
+    func start()
+    {
+        do
+        {
             try avAudioEngine.start()
-        } catch {
+        } catch
+        {
             print("Could not start audio engine: \(error)")
         }
     }
 
-    func checkEngineIsRunning() {
-        if !avAudioEngine.isRunning {
+    func checkEngineIsRunning()
+    {
+        if !avAudioEngine.isRunning
+        {
             start()
         }
     }
 
-    func bypassVoiceProcessing(_ bypass: Bool) {
-        let input = avAudioEngine.inputNode
-        input.isVoiceProcessingBypassed = bypass
-    }
-    
-    func toggleRecording() {
-        if isRecording {
-            isRecording = false
-            recordedFile = nil // Close the file.
-        } else {
-            recordedFilePlayer.stop()
-
-            do {
-                recordedFile = try AVAudioFile(forWriting: recordedFileURL, settings: fileFormat.settings)
-                isNewRecordingAvailable = true
-                isRecording = true
-            } catch {
-                print("Could not create file for recording: \(error)")
-            }
-        }
+    func setRecordingState(_ state: Bool)
+    {
+        self.isRecording = state
     }
 
-    func stopRecordingAndPlayers() {
-        if isRecording {
+    func stopRecordingAndPlayers()
+    {
+        if isRecording
+        {
             isRecording = false
         }
 
-        recordedFilePlayer.stop()
+        voicePlayer.stop()
+        harmoniesPlayer.stop()
+        self.isPlayingVoice = false
+        self.isPlayingHarmonies = false
     }
 
-    var isPlaying: Bool {
-        return recordedFilePlayer.isPlaying
-    }
-    
-    func speechPlayerPlay(_ shouldPlay: Bool) {
-        if shouldPlay {
-            speechPlayer.scheduleBuffer(speechBuffer, at: nil, options: .loops)
-            speechPlayer.play()
-        } else {
-            speechPlayer.stop()
+    func voicePlayerPlay() 
+    {
+        if self.isPlayingVoice
+        {
+            voicePlayer.scheduleBuffer(voiceBuffer, at: nil)//, options: .loops)
+            voicePlayer.play()
         }
     }
 
-    func togglePlaying() {
-        if recordedFilePlayer.isPlaying {
-            recordedFilePlayer.pause()
-        } else {
-            if isNewRecordingAvailable {
-                audioUnitTimePitch.pitch = Float(1200)
-                guard let recordedBuffer = AudioEngine.getBuffer(fileURL: recordedFileURL) else { return }
-                recordedFilePlayer.scheduleBuffer(recordedBuffer, at: nil, options: .loops)
-                isNewRecordingAvailable = false
-            }
-            recordedFilePlayer.play()
-
-//            fxPlayer.stop()
-            speechPlayer.stop()
+    func harmoniesPlayerPlay()
+    {
+        if self.isPlayingHarmonies
+        {
+            // Pitch up the recoded voice (TODO: according to chord degree)
+            audioUnitTimePitch.pitch = Float(1200)
+            let harmonyBuffer = voiceBuffer
+            harmoniesPlayer.scheduleBuffer(harmonyBuffer, at: nil)//, options: .loops)
+//            harmoniesPlayer.scheduleBuffer(voiceBuffer, at: nil)//, options: .loops)
+            harmoniesPlayer.play()
         }
-        
-//        speechPlayerPlay(true)
+    }
+
+    func setVoicePlayerState(_ state: Bool)
+    {
+        self.isPlayingVoice = state
+    }
+
+    func setHarmonyPlayerState(_ state: Bool)
+    {
+        self.isPlayingHarmonies = state
     }
 }
