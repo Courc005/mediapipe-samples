@@ -122,30 +122,33 @@ class CameraViewController: UIViewController {
             
             if (gestureLabel == "Closed_Fist")
             {
-                self.audioEngine?.checkEngineIsRunning()
                 self.audioEngine?.stopRecordingAndPlayers()
             }
 
             if (self.audioEngine?.isPlayingVoice == true)
             {
-                if (gestureLabel == "Thumbs_Up")
+                if (gestureLabel == "Thumb_Up")
                 {
                     // Major
+                    self.audioEngine.chordGenerator(chordType: "Major")
                     self.audioEngine?.setHarmonyPlayerState(true)
                 }
-                else if (gestureLabel == "Thumbs_Down")
+                else if (gestureLabel == "Thumb_Down")
                 {
                     // Minor
+                    self.audioEngine.chordGenerator(chordType: "Minor")
                     self.audioEngine?.setHarmonyPlayerState(true)
                 }
                 else if (gestureLabel == "Open_Palm")
                 {
                     // Diminished
+                    self.audioEngine.chordGenerator(chordType: "Dim7")
                     self.audioEngine?.setHarmonyPlayerState(true)
                 }
                 else if (gestureLabel == "Victory")
                 {
                     // Dominant
+                    self.audioEngine.chordGenerator(chordType: "Dom7")
                     self.audioEngine?.setHarmonyPlayerState(true)
                 }
             }

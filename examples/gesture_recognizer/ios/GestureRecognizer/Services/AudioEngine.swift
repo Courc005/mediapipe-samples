@@ -8,7 +8,9 @@ The class for handling AVAudioEngine.
 import AVFoundation
 import Foundation
 
-class AudioEngine {
+class AudioEngine
+{
+    private let MAX_CHORD_VOICES = 8
 
     private var recordedFileURL = URL(fileURLWithPath: "input.mic", isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory()))
 
@@ -17,12 +19,16 @@ class AudioEngine {
     private var voicePlayer = AVAudioPlayerNode()
 
     // AV Audio player for the other chord degrees (TODO: Should be an array in the end)
-    private var harmoniesBuffer = AVAudioPCMBuffer()
-    private var harmoniesPlayer = AVAudioPlayerNode()
+    private var harmoniesBuffer = [AVAudioPCMBuffer()]
+    private var harmoniesPlayer = [AVAudioPlayerNode()]
     private var harmoniesMixer = AVAudioMixerNode()
 
+    // Chord voicing number and cent offsets
+    private var chordSize: Int
+    private var chordPitchShifts: [Float]
+
     private var avAudioEngine = AVAudioEngine()
-    private var audioUnitTimePitch = AVAudioUnitTimePitch()
+    private var audioUnitTimePitch = [AVAudioUnitTimePitch()]
 
     private var isNewRecordingAvailable = false
     private var recordedFile: AVAudioFile?
@@ -32,13 +38,7 @@ class AudioEngine {
     public private(set) var isPlayingVoice = false
     public private(set) var isPlayingHarmonies = false
 
-    enum AudioEngineError: Error {
-        case bufferRetrieveError
-        case fileFormatError
-        case audioFileNotFound
-    }
-
-    enum ChordType: Error
+    enum AudioEngineError: Error
     {
         case bufferRetrieveError
         case fileFormatError
@@ -54,6 +54,11 @@ class AudioEngine {
                                       channels: 1,
                                       interleaved: true)!
 
+        self.chordSize = 0
+        self.chordPitchShifts = Array(repeating: 0.0, count: MAX_CHORD_VOICES)
+        self.audioUnitTimePitch = Array(repeating: AVAudioUnitTimePitch(), count: MAX_CHORD_VOICES)
+        self.harmoniesBuffer = Array(repeating: AVAudioPCMBuffer(), count: MAX_CHORD_VOICES)
+        self.harmoniesPlayer = Array(repeating: AVAudioPlayerNode(), count: MAX_CHORD_VOICES)
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(configChanged(_:)),
@@ -67,34 +72,31 @@ class AudioEngine {
         checkEngineIsRunning()
     }
 
-    private static func getBuffer(fileURL: URL) -> AVAudioPCMBuffer?
+    func chordGenerator(chordType: String)
     {
-        let file: AVAudioFile!
-        do
+        switch (chordType)
         {
-            try file = AVAudioFile(forReading: fileURL)
-        } catch
-        {
-            print("Could not load file: \(error)")
-            return nil
+            // Chord size includes root note, pitch shifts do not
+            case "Major":
+                self.chordSize = 3
+                self.chordPitchShifts = [400, 700]
+
+            case "Minor":
+                self.chordSize = 3
+                self.chordPitchShifts = [300, 700]
+
+            case "Dom7":
+                self.chordSize = 4
+                self.chordPitchShifts = [400, 700, 1000]
+
+            case "Dim7":
+                self.chordSize = 4
+                self.chordPitchShifts = [300, 600, 900];
+
+            default:
+                self.chordSize = 1
+                self.chordPitchShifts = [0]
         }
-        file.framePosition = 0
-        
-        // Add 100 ms to the capacity.
-        let bufferCapacity = AVAudioFrameCount(file.length)
-                + AVAudioFrameCount(file.processingFormat.sampleRate * 0.1)
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
-                                            frameCapacity: bufferCapacity) else { return nil }
-        do
-        {
-            try file.read(into: buffer)
-        } catch
-        {
-            print("Could not load file into buffer: \(error)")
-            return nil
-        }
-        file.framePosition = 0
-        return buffer
     }
 
     func setup()
@@ -112,16 +114,17 @@ class AudioEngine {
         let output = avAudioEngine.outputNode
         let mainMixer = avAudioEngine.mainMixerNode
 
-
-        avAudioEngine.attach(harmoniesPlayer)
         avAudioEngine.attach(harmoniesMixer)
-        avAudioEngine.attach(audioUnitTimePitch)
-        avAudioEngine.attach(voicePlayer)
 
-        avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch, format: voiceIOFormat)
-        avAudioEngine.connect(audioUnitTimePitch, to: harmoniesMixer, format: voiceIOFormat)
+        for (harmPlayer, auPitchShift) in zip(harmoniesPlayer, audioUnitTimePitch)
+        {
+            avAudioEngine.attach(harmPlayer)
+            avAudioEngine.attach(auPitchShift)
+            avAudioEngine.connect(harmPlayer, to: auPitchShift, format: voiceIOFormat)
+            avAudioEngine.connect(auPitchShift, to: harmoniesMixer, format: voiceIOFormat)
 
-        avAudioEngine.connect(voicePlayer, to: mainMixer, format: voiceIOFormat)
+        }
+
         avAudioEngine.connect(harmoniesMixer, to: mainMixer, format: voiceIOFormat)
 
         avAudioEngine.connect(mainMixer, to: output, format: voiceIOFormat)
@@ -132,7 +135,14 @@ class AudioEngine {
         {
             buffer, when in
                 self.voiceBuffer = buffer
-                self.voicePlayerPlay()
+//                self.voicePlayerPlay()
+                if (self.chordSize > 0)
+                {
+                    for ix in 0..<self.chordSize-1
+                    {
+                        self.harmoniesBuffer[ix] = self.voiceBuffer.copy() as! AVAudioPCMBuffer
+                    }
+                }
                 self.harmoniesPlayerPlay()
 
         }
@@ -171,7 +181,10 @@ class AudioEngine {
         }
 
         voicePlayer.stop()
-        harmoniesPlayer.stop()
+        for harmPlayer in harmoniesPlayer
+        {
+            harmPlayer.stop()
+        }
         self.isPlayingVoice = false
         self.isPlayingHarmonies = false
     }
@@ -189,12 +202,17 @@ class AudioEngine {
     {
         if self.isPlayingHarmonies
         {
-            // Pitch up the recoded voice (TODO: according to chord degree)
-            audioUnitTimePitch.pitch = Float(1200)
-            let harmonyBuffer = voiceBuffer
-            harmoniesPlayer.scheduleBuffer(harmonyBuffer, at: nil)//, options: .loops)
-//            harmoniesPlayer.scheduleBuffer(voiceBuffer, at: nil)//, options: .loops)
-            harmoniesPlayer.play()
+            // Pitch up the recoded voice
+            for ix in 0...0//chordPitchShifts.indices
+            {
+                audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
+                harmoniesPlayer[ix].scheduleBuffer(harmoniesBuffer[ix], at: nil) //, options: .loops)
+                harmoniesPlayer[ix].play()
+            }
+            for ix in self.chordSize-1..<MAX_CHORD_VOICES
+            {
+                harmoniesPlayer[ix].stop()
+            }
         }
     }
 
