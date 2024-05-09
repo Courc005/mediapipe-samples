@@ -10,6 +10,7 @@
 		3FD872F9C15E99D079778F5B /* libPods-GestureRecognizerTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D2F94D163E413BA59A5DA2F7 /* libPods-GestureRecognizerTests.a */; };
 		68516ACF2BDBC58400833E9F /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68516ACE2BDBC58400833E9F /* AudioEngine.swift */; };
 		68516AD12BDBC59600833E9F /* sampleVoice8kHz.wav in Resources */ = {isa = PBXBuildFile; fileRef = 68516AD02BDBC59600833E9F /* sampleVoice8kHz.wav */; };
+		68D69D7F2BECC7A1003082AC /* hand emoji superostmk1024.png in Resources */ = {isa = PBXBuildFile; fileRef = 68D69D7E2BECC7A1003082AC /* hand emoji superostmk1024.png */; };
 		6FBEC589F95598F91D44C212 /* Pods_GestureRecognizer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 11F5A9E84CDB54B828F1E12E /* Pods_GestureRecognizer.framework */; };
 		BF5EEC762AB7FDE600189276 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5EEC752AB7FDE600189276 /* AppDelegate.swift */; };
 		BF5EEC782AB7FDE600189276 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5EEC772AB7FDE600189276 /* SceneDelegate.swift */; };
@@ -46,6 +47,7 @@
 		3B2C656DB80563A24D34BE36 /* Pods-GestureRecognizerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GestureRecognizerTests.release.xcconfig"; path = "Target Support Files/Pods-GestureRecognizerTests/Pods-GestureRecognizerTests.release.xcconfig"; sourceTree = "<group>"; };
 		68516ACE2BDBC58400833E9F /* AudioEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
 		68516AD02BDBC59600833E9F /* sampleVoice8kHz.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = sampleVoice8kHz.wav; sourceTree = "<group>"; };
+		68D69D7E2BECC7A1003082AC /* hand emoji superostmk1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "hand emoji superostmk1024.png"; sourceTree = "<group>"; };
 		AB2CEEB6056F92C5EAB8FB2B /* Pods-GestureRecognizer.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GestureRecognizer.release.xcconfig"; path = "Target Support Files/Pods-GestureRecognizer/Pods-GestureRecognizer.release.xcconfig"; sourceTree = "<group>"; };
 		BF5EEC722AB7FDE600189276 /* GestureRecognizer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GestureRecognizer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF5EEC752AB7FDE600189276 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 				BF5EEC772AB7FDE600189276 /* SceneDelegate.swift */,
 				BF5EEC7B2AB7FDE600189276 /* Main.storyboard */,
 				BF5EEC7E2AB7FDE700189276 /* Assets.xcassets */,
+				68D69D7E2BECC7A1003082AC /* hand emoji superostmk1024.png */,
 				BF5EEC802AB7FDE700189276 /* LaunchScreen.storyboard */,
 				BF5EEC832AB7FDE700189276 /* Info.plist */,
 				BF5EECA82AB8011E00189276 /* gesture_recognizer.task */,
@@ -284,6 +287,7 @@
 				68516AD12BDBC59600833E9F /* sampleVoice8kHz.wav in Resources */,
 				BF5EEC822AB7FDE700189276 /* LaunchScreen.storyboard in Resources */,
 				BF5EEC7F2AB7FDE700189276 /* Assets.xcassets in Resources */,
+				68D69D7F2BECC7A1003082AC /* hand emoji superostmk1024.png in Resources */,
 				BF5EECA92AB8011E00189276 /* gesture_recognizer.task in Resources */,
 				BF5EEC7D2AB7FDE600189276 /* Main.storyboard in Resources */,
 			);
@@ -547,6 +551,7 @@
 				DEVELOPMENT_TEAM = YT8PYFMGU2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GestureRecognizer/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Handy Harmonizer";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to get the gesture that appear in the camera feed.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = 123;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -560,7 +565,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.mediapipe.examples.GestureRecognizer;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.mediapipe.examples.GestureRecognizer1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -579,6 +584,7 @@
 				DEVELOPMENT_TEAM = YT8PYFMGU2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GestureRecognizer/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Handy Harmonizer";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to get the gesture that appear in the camera feed.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = 123;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -592,7 +598,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.mediapipe.examples.GestureRecognizer;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.mediapipe.examples.GestureRecognizer1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

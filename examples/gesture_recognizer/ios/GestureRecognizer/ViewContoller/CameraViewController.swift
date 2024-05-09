@@ -151,6 +151,7 @@ class CameraViewController: UIViewController {
                     self.audioEngine.chordGenerator(chordType: "Dom7")
                     self.audioEngine?.setHarmonyPlayerState(true)
                 }
+                
             }
         }
     }
