@@ -116,13 +116,14 @@ class CameraViewController: UIViewController {
             if (gestureLabel == "Pointing_Up")
             {
                 self.audioEngine?.checkEngineIsRunning()
-                self.audioEngine?.setRecordingState(true)
-                self.audioEngine?.setVoicePlayerState(true)
+                self.audioEngine?.startRecording()
+                self.audioEngine?.voicePlayerStop()
             }
             
             if (gestureLabel == "Closed_Fist")
             {
-                self.audioEngine?.stopRecordingAndPlayers()
+                self.audioEngine?.stopRecording()
+                self.audioEngine?.voicePlayerPlay()
             }
 
             if (self.audioEngine?.isPlayingVoice == true)
@@ -130,26 +131,22 @@ class CameraViewController: UIViewController {
                 if (gestureLabel == "Thumb_Up")
                 {
                     // Major
-                    self.audioEngine.chordGenerator(chordType: "Major")
-                    self.audioEngine?.setHarmonyPlayerState(true)
+                    self.audioEngine.setChordMode(chordType: "Major")
                 }
                 else if (gestureLabel == "Thumb_Down")
                 {
                     // Minor
-                    self.audioEngine.chordGenerator(chordType: "Minor")
-                    self.audioEngine?.setHarmonyPlayerState(true)
+                    self.audioEngine.setChordMode(chordType: "Minor")
                 }
                 else if (gestureLabel == "Open_Palm")
                 {
                     // Diminished
-                    self.audioEngine.chordGenerator(chordType: "Dim7")
-                    self.audioEngine?.setHarmonyPlayerState(true)
+                    self.audioEngine.setChordMode(chordType: "Dim7")
                 }
                 else if (gestureLabel == "Victory")
                 {
                     // Dominant
-                    self.audioEngine.chordGenerator(chordType: "Dom7")
-                    self.audioEngine?.setHarmonyPlayerState(true)
+                    self.audioEngine.setChordMode(chordType: "Dom7")
                 }
                 
             }
@@ -160,7 +157,7 @@ class CameraViewController: UIViewController {
       let session = AVAudioSession.sharedInstance()
 
       do {
-          try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+          try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker])
       } catch {
           print("Could not set the audio category: \(error.localizedDescription)")
       }
@@ -198,8 +195,9 @@ class CameraViewController: UIViewController {
         switch type {
         case .began:
             // Interruption begins so you need to take appropriate actions.
-            audioEngine?.stopRecordingAndPlayers()
-            
+                audioEngine?.stopRecording()
+                audioEngine?.stopPlayers()
+
         case .ended:
             do {
                 try AVAudioSession.sharedInstance().setActive(true)

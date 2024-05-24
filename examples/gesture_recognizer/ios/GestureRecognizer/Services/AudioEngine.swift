@@ -10,7 +10,7 @@ import Foundation
 
 class AudioEngine
 {
-    private let MAX_CHORD_VOICES = 2
+    private let MAX_CHORD_VOICES = 3
 
     private var recordedFileURL = URL(fileURLWithPath: "input.mic", isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory()))
 
@@ -34,6 +34,7 @@ class AudioEngine
     private var avAudioEngine = AVAudioEngine()
     private var audioUnitTimePitch = [AVAudioUnitTimePitch]()
 
+//    private var audioRecorder = AVAudioRecorder()
     private var isNewRecordingAvailable = false
     private var recordedFile: AVAudioFile?
 
@@ -60,12 +61,8 @@ class AudioEngine
 
         self.chordSize = 0
         self.chordPitchShifts = Array(repeating: 0.0, count: MAX_CHORD_VOICES)
-//        
-//         self.audioUnitTimePitch = Array(repeating: AVAudioUnitTimePitch(), count: MAX_CHORD_VOICES)
-//        self.harmoniesBuffer = Array(repeating: AVAudioPCMBuffer(), count: MAX_CHORD_VOICES)
-//        self.harmoniesPlayer = Array(repeating: AVAudioPlayerNode(), count: MAX_CHORD_VOICES)
-         
-        for i in 0..<MAX_CHORD_VOICES
+
+        for _ in 0..<MAX_CHORD_VOICES
         {
             self.chordPitchShifts.append(0.0)
             self.audioUnitTimePitch.append(AVAudioUnitTimePitch())
@@ -76,10 +73,45 @@ class AudioEngine
         
         instantiateMatrixMixer()
 
+//        self.audioRecorder = try AVAudioRecorder(url: recordedFileURL, format: self.voiceIOFormat)
+//        self.audioRecorder.isMeteringEnabled = true
+//        self.audioRecorder.prepareToRecord()
+
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(configChanged(_:)),
                                                name: .AVAudioEngineConfigurationChange,
                                                object: avAudioEngine)
+    }
+
+    private func getBuffer(fileURL: URL) -> AVAudioPCMBuffer?
+    {
+        let file: AVAudioFile!
+        do
+        {
+            try file = AVAudioFile(forReading: fileURL)
+        } catch
+        {
+            print("Could not load file: \(error)")
+            return nil
+        }
+        file.framePosition = 0
+
+        // Add 100 ms to the capacity.
+        let bufferCapacity = AVAudioFrameCount(file.length)
+        + AVAudioFrameCount(file.processingFormat.sampleRate * 0.1)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: voiceIOFormat,
+                                            frameCapacity: bufferCapacity) else { return nil }
+        do
+        {
+            try file.read(into: buffer)
+        }
+        catch
+        {
+            print("Could not load file into buffer: \(error)")
+            return nil
+        }
+        file.framePosition = 0
+        return buffer
     }
 
     @objc
@@ -88,31 +120,53 @@ class AudioEngine
         checkEngineIsRunning()
     }
 
-    func chordGenerator(chordType: String)
+    private func chordGenerator(chordType: String)
     {
         switch (chordType)
         {
             // Chord size includes root note, pitch shifts do not
             case "Major":
                 self.chordSize = 3
-                self.chordPitchShifts = [400, 700]
+                self.chordPitchShifts = [0, 400, 700]
+                self.setHarmonyPlayerState(true)
 
             case "Minor":
                 self.chordSize = 3
-                self.chordPitchShifts = [300, 700]
+                self.chordPitchShifts = [0, 300, 700]
+                self.setHarmonyPlayerState(true)
 
             case "Dom7":
                 self.chordSize = 4
-                self.chordPitchShifts = [400, 700, 1000]
+                self.chordPitchShifts = [0, 400, 700, 1000]
+                self.setHarmonyPlayerState(true)
 
             case "Dim7":
                 self.chordSize = 4
-                self.chordPitchShifts = [300, 600, 900];
+                self.chordPitchShifts = [0, 300, 600, 900];
+                self.setHarmonyPlayerState(true)
 
             default:
                 self.chordSize = 1
                 self.chordPitchShifts = [0]
         }
+    }
+
+    private func setupPitchShifters()
+    {
+        // Pitch up the recoded voice
+        for ix in 0..<min(self.chordSize-1, MAX_CHORD_VOICES)
+        {
+            audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
+            //                harmoniesPlayer[ix].scheduleBuffer(harmoniesBuffer[ix], at: nil) //, options: .loops)
+            //                harmoniesPlayer[ix].scheduleBuffer(voiceBuffer, at: nil) //, options: .loops)
+            //                harmoniesPlayer[ix].play()
+        }
+    }
+
+    func setChordMode(chordType: String)
+    {
+        chordGenerator(chordType: chordType)
+        setupPitchShifters()
     }
 
     func instantiateMatrixMixer() 
@@ -147,34 +201,42 @@ class AudioEngine
         let output = avAudioEngine.outputNode
         let mainMixer = avAudioEngine.mainMixerNode
 
-        avAudioEngine.attach(harmoniesMixer)
-        avAudioEngine.attach(matrixMixer1!)
-
-//        for (harmPlayer, auPitchShift) in zip(harmoniesPlayer, audioUnitTimePitch)
+        avAudioEngine.attach(voicePlayer)
+//        avAudioEngine.attach(harmoniesMixer)
+//        avAudioEngine.attach(matrixMixer1!)
+//
+////        for (harmPlayer, auPitchShift) in zip(harmoniesPlayer, audioUnitTimePitch)
+////        {
+////            avAudioEngine.attach(harmPlayer)
+////            avAudioEngine.attach(auPitchShift)
+////            avAudioEngine.connect(harmPlayer, to: auPitchShift, format: voiceIOFormat)
+////            avAudioEngine.connect(auPitchShift, to: mainMixer, format: voiceIOFormat)
+////
+////        }
+//        avAudioEngine.attach(harmoniesPlayer)
+//        for ix in 0..<self.MAX_CHORD_VOICES
 //        {
-//            avAudioEngine.attach(harmPlayer)
-//            avAudioEngine.attach(auPitchShift)
-//            avAudioEngine.connect(harmPlayer, to: auPitchShift, format: voiceIOFormat)
-//            avAudioEngine.connect(auPitchShift, to: mainMixer, format: voiceIOFormat)
+//            avAudioEngine.attach(harmoniesMixerArray[ix])
+//            avAudioEngine.attach(audioUnitTimePitch[ix])
+//            avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch[ix], format: voiceIOFormat)
+//            avAudioEngine.connect(audioUnitTimePitch[ix], to: harmoniesMixerArray[ix], format: voiceIOFormat)
+//            avAudioEngine.connect(harmoniesMixerArray[ix], to: mainMixer, format: voiceIOFormat)
+//            
+//
+////            avAudioEngine.connect(auPitchShift, to: matrixMixer1!, format: voiceIOFormat)
 //
 //        }
-        avAudioEngine.attach(harmoniesPlayer)
-        for ix in 0..<self.MAX_CHORD_VOICES
+//        harmoniesMixerArray[0].volume  = 0.2
+//        harmoniesMixerArray[1].volume  = 1.0
+
+        avAudioEngine.connect(voicePlayer, to: mainMixer, format: voiceIOFormat)
+
+        for auPitchShift in audioUnitTimePitch
         {
-            avAudioEngine.attach(harmoniesMixerArray[ix])
-            avAudioEngine.attach(audioUnitTimePitch[ix])
-            avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch[ix], format: voiceIOFormat)
-            avAudioEngine.connect(audioUnitTimePitch[ix], to: harmoniesMixerArray[ix], format: voiceIOFormat)
-            avAudioEngine.connect(harmoniesMixerArray[ix], to: mainMixer, format: voiceIOFormat)
-            
-
-//            avAudioEngine.connect(auPitchShift, to: matrixMixer1!, format: voiceIOFormat)
-
+            avAudioEngine.attach(auPitchShift)
+            avAudioEngine.connect(voicePlayer, to: auPitchShift, format: voiceIOFormat)
+            avAudioEngine.connect(auPitchShift, to: mainMixer, format: voiceIOFormat)
         }
-        harmoniesMixerArray[0].volume  = 0.2
-        harmoniesMixerArray[1].volume  = 1.0
-
-        
 //        avAudioEngine.attach(audioUnitTimePitch[0])
 //        avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch[0], format: voiceIOFormat)
 //        avAudioEngine.connect(audioUnitTimePitch[0], to: mainMixer, fromBus: 0, toBus: 0, format: voiceIOFormat)
@@ -190,41 +252,58 @@ class AudioEngine
 //        avAudioEngine.connect(matrixMixer1!, to: output, format: voiceIOFormat)
 
         mainMixer.volume  = 1.0
-
-        input.installTap(onBus: 0, bufferSize: 1024, format: voiceIOFormat)
-        {
+        input.installTap(onBus: 0, bufferSize: 256, format: voiceIOFormat)
+        { 
             buffer, when in
-                self.voiceBuffer = buffer
-//                self.voicePlayerPlay()
-                if (self.chordSize > 0)
+                if self.isRecording 
                 {
-//                    for ix in 0..<min(self.chordSize, self.MAX_CHORD_VOICES)
-//                    {
-//                        self.harmoniesBuffer[ix] = self.voiceBuffer.copy() as! AVAudioPCMBuffer
-//                    }
+                    do
+                    {
+                        try self.recordedFile?.write(from: buffer)
+                    }
+                    catch
+                    {
+                        print("Could not write buffer: \(error)")
+                    }
+                    //                self.voiceIOPowerMeter.process(buffer: buffer)
+                    //            } else {
+                    //                self.voiceIOPowerMeter.processSilence()
                 }
-
-                self.harmoniesPlayer.prepare(withFrameCount: self.voiceBuffer.frameLength)
-            
-
-                AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Global, 0xFFFFFFFF, 1.0, 0);
-                for ix in 0..<self.MAX_CHORD_VOICES
-                {
-                    AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Output, AudioUnitElement(ix), 1.0, 0);
-                }
-                AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Output, 1, 1.0, 0);
-                AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Input, 0, 1.0, 0);
-
-                let matrixIn : UInt32 = 0
-//                let matrixOut : UInt32 = 0
-                for matrixOut in 0..<self.MAX_CHORD_VOICES
-                {
-                    let crossPoint : UInt32  = UInt32((matrixIn << 16)) | UInt32((matrixOut & 0x0000FFFF));
-                    AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Global, crossPoint, 1.0, 0);
-                }
-                self.harmoniesPlayerPlay()
         }
-        avAudioEngine.prepare()
+//        input.installTap(onBus: 0, bufferSize: 1024, format: voiceIOFormat)
+//        {
+//            buffer, when in
+//                self.voiceBuffer = buffer
+//
+//                if (self.chordSize > 0)
+//                {
+////                    for ix in 0..<min(self.chordSize, self.MAX_CHORD_VOICES)
+////                    {
+////                        self.harmoniesBuffer[ix] = self.voiceBuffer.copy() as! AVAudioPCMBuffer
+////                    }
+//                }
+//
+//                self.harmoniesPlayer.prepare(withFrameCount: self.voiceBuffer.frameLength)
+//            
+//
+//                AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Global, 0xFFFFFFFF, 1.0, 0);
+//                for ix in 0..<self.MAX_CHORD_VOICES
+//                {
+//                    AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Output, AudioUnitElement(ix), 1.0, 0);
+//                }
+//                AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Output, 1, 1.0, 0);
+//                AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Input, 0, 1.0, 0);
+//
+//                let matrixIn : UInt32 = 0
+////                let matrixOut : UInt32 = 0
+//                for matrixOut in 0..<self.MAX_CHORD_VOICES
+//                {
+//                    let crossPoint : UInt32  = UInt32((matrixIn << 16)) | UInt32((matrixOut & 0x0000FFFF));
+//                    AudioUnitSetParameter(self.matrixMixer1!.audioUnit, kMatrixMixerParam_Volume, kAudioUnitScope_Global, crossPoint, 1.0, 0);
+//                }
+//                self.harmoniesPlayerPlay()
+//        }
+        self.avAudioEngine.prepare()
     }
 
     func start()
@@ -246,58 +325,96 @@ class AudioEngine
         }
     }
 
-    func setRecordingState(_ state: Bool)
-    {
-        self.isRecording = state
-    }
-
     func stopRecordingAndPlayers()
     {
-        if isRecording
-        {
-            isRecording = false
-        }
-
-        voicePlayer.stop()
-//        for harmPlayer in harmoniesPlayer
-//        {
-//            harmPlayer.stop()
-//        }
-        harmoniesPlayer.stop()
-
-        self.isPlayingVoice = false
-        self.isPlayingHarmonies = false
+        self.stopRecording()
+        self.stopPlayers()
     }
 
     func voicePlayerPlay() 
     {
-        if self.isPlayingVoice
-        {
-            voicePlayer.scheduleBuffer(voiceBuffer, at: nil)//, options: .loops)
-            voicePlayer.play()
-        }
+	        voiceBuffer = self.getBuffer(fileURL: recordedFileURL)!
+        voicePlayer.scheduleBuffer(voiceBuffer, at: nil, options: .loops)
+        voicePlayer.play()
+        self.setVoicePlayerState(true)
+    }
+
+    func voicePlayerStop()
+    {
+        voicePlayer.stop()
+        self.setVoicePlayerState(true)
     }
 
     func harmoniesPlayerPlay()
     {
-        if self.isPlayingHarmonies
+        // Pitch up the recoded voice
+        for ix in 0..<min(self.chordSize-1, MAX_CHORD_VOICES)
         {
-            // Pitch up the recoded voice
-            for ix in 0..<min(self.chordSize-1, MAX_CHORD_VOICES)
-            {
-                audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
+            audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
 //                harmoniesPlayer[ix].scheduleBuffer(harmoniesBuffer[ix], at: nil) //, options: .loops)
 //                harmoniesPlayer[ix].scheduleBuffer(voiceBuffer, at: nil) //, options: .loops)
 //                harmoniesPlayer[ix].play()
-            }
-            harmoniesPlayer.scheduleBuffer(voiceBuffer, at: nil)
-            harmoniesPlayer.play()
-        
-//            for ix in min(self.chordSize, MAX_CHORD_VOICES)..<MAX_CHORD_VOICES
-//            {
-//                harmoniesPlayer[ix].stop()
-//            }
         }
+//        harmoniesPlayer.scheduleBuffer(voiceBuffer, at: nil)
+//        harmoniesPlayer.play()
+
+        for ix in min(self.chordSize-1, MAX_CHORD_VOICES)..<MAX_CHORD_VOICES
+        {
+//            harmoniesPlayer[ix].play()
+        }
+        self.setHarmonyPlayerState(true)
+    }
+
+    func harmoniesPlayerStop()
+    {
+        harmoniesPlayer.stop()
+        self.setHarmonyPlayerState(false)
+
+            //            for ix in min(self.chordSize, MAX_CHORD_VOICES)..<MAX_CHORD_VOICES
+            //            {
+            //                harmoniesPlayer[ix].stop()
+            //            }
+    }
+
+    func startRecording()
+    {
+        // Reset the file pointer to the start of the file
+//        self.audioRecorder.prepareToRecord()
+        // Then start recording
+//        self.audioRecorder.record()
+        do
+        {
+            recordedFile = try AVAudioFile(forWriting: recordedFileURL, settings: voiceIOFormat.settings)
+        }
+        catch
+        {
+            print("Could not record file: \(error)")
+        }
+        self.setRecordingState(true)
+    }
+
+    func stopRecording()
+    {
+//        self.audioRecorder.stop()
+        self.recordedFile = nil // close the file
+        self.setRecordingState(false)
+    }
+
+    func stopPlayers()
+    {
+        voicePlayer.stop()
+        //        for harmPlayer in harmoniesPlayer
+        //        {
+        //            harmPlayer.stop()
+        //        }
+        harmoniesPlayer.stop()
+        self.setVoicePlayerState(false)
+        self.setHarmonyPlayerState(false)
+    }
+
+    func setRecordingState(_ state: Bool)
+    {
+        self.isRecording = state
     }
 
     func setVoicePlayerState(_ state: Bool)
