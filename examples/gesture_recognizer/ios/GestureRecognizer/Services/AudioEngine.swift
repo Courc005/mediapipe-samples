@@ -252,24 +252,6 @@ class AudioEngine
 //        avAudioEngine.connect(matrixMixer1!, to: output, format: voiceIOFormat)
 
         mainMixer.volume  = 1.0
-        input.installTap(onBus: 0, bufferSize: 256, format: voiceIOFormat)
-        { 
-            buffer, when in
-                if self.isRecording 
-                {
-                    do
-                    {
-                        try self.recordedFile?.write(from: buffer)
-                    }
-                    catch
-                    {
-                        print("Could not write buffer: \(error)")
-                    }
-                    //                self.voiceIOPowerMeter.process(buffer: buffer)
-                    //            } else {
-                    //                self.voiceIOPowerMeter.processSilence()
-                }
-        }
 //        input.installTap(onBus: 0, bufferSize: 1024, format: voiceIOFormat)
 //        {
 //            buffer, when in
@@ -333,7 +315,7 @@ class AudioEngine
 
     func voicePlayerPlay() 
     {
-	        voiceBuffer = self.getBuffer(fileURL: recordedFileURL)!
+        voiceBuffer = self.getBuffer(fileURL: recordedFileURL)!
         voicePlayer.scheduleBuffer(voiceBuffer, at: nil, options: .loops)
         voicePlayer.play()
         self.setVoicePlayerState(true)
@@ -342,7 +324,7 @@ class AudioEngine
     func voicePlayerStop()
     {
         voicePlayer.stop()
-        self.setVoicePlayerState(true)
+        self.setVoicePlayerState(false)
     }
 
     func harmoniesPlayerPlay()
@@ -358,10 +340,10 @@ class AudioEngine
 //        harmoniesPlayer.scheduleBuffer(voiceBuffer, at: nil)
 //        harmoniesPlayer.play()
 
-        for ix in min(self.chordSize-1, MAX_CHORD_VOICES)..<MAX_CHORD_VOICES
-        {
+//        for ix in min(self.chordSize-1, MAX_CHORD_VOICES)..<MAX_CHORD_VOICES
+//        {
 //            harmoniesPlayer[ix].play()
-        }
+//        }
         self.setHarmonyPlayerState(true)
     }
 
@@ -369,7 +351,6 @@ class AudioEngine
     {
         harmoniesPlayer.stop()
         self.setHarmonyPlayerState(false)
-
             //            for ix in min(self.chordSize, MAX_CHORD_VOICES)..<MAX_CHORD_VOICES
             //            {
             //                harmoniesPlayer[ix].stop()
@@ -382,22 +363,43 @@ class AudioEngine
 //        self.audioRecorder.prepareToRecord()
         // Then start recording
 //        self.audioRecorder.record()
-        do
+        if (!isRecording)
         {
-            recordedFile = try AVAudioFile(forWriting: recordedFileURL, settings: voiceIOFormat.settings)
+            do
+            {
+                recordedFile = try AVAudioFile(forWriting: recordedFileURL, settings: voiceIOFormat.settings)
+            }
+            catch
+            {
+                print("Could not record file: \(error)")
+            }
+            avAudioEngine.inputNode.installTap(onBus: 0, bufferSize: 8192, format: voiceIOFormat)
+            {
+                buffer, when in
+                if self.isRecording
+                {
+                    do
+                    {
+                        try self.recordedFile?.write(from: buffer)
+                    }
+                    catch
+                    {
+                        print("Could not write buffer: \(error)")
+                    }
+                }
+            }
+            self.setRecordingState(true)
         }
-        catch
-        {
-            print("Could not record file: \(error)")
-        }
-        self.setRecordingState(true)
     }
 
     func stopRecording()
     {
-//        self.audioRecorder.stop()
-        self.recordedFile = nil // close the file
-        self.setRecordingState(false)
+        if (isRecording)
+        {
+            self.recordedFile = nil // close the file
+            avAudioEngine.inputNode.removeTap(onBus: 0)
+            self.setRecordingState(false)
+        }
     }
 
     func stopPlayers()
