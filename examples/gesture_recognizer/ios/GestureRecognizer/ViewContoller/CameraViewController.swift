@@ -128,27 +128,29 @@ class CameraViewController: UIViewController {
 
             if (self.audioEngine?.isPlayingVoice == true)
             {
-                if (gestureLabel == "Thumb_Up")
+                switch (gestureLabel)
                 {
-                    // Major
-                    self.audioEngine.setChordMode(chordType: "Major")
+                    case "Thumb_Up":
+                        // Major
+                        self.audioEngine.setChordMode(chordType: "Major")
+
+                    case "Thumb_Down":
+                        // Minor
+                        self.audioEngine.setChordMode(chordType: "Minor")
+
+                    case  "Open_Palm":
+                        // Diminished
+                        self.audioEngine.setChordMode(chordType: "Dim7")
+
+                    case "Victory":
+                        // Dominant
+                        self.audioEngine.setChordMode(chordType: "Dom7")
+
+                    default:
+                        // Root note only
+                        self.audioEngine.setChordMode(chordType: "root")
                 }
-                else if (gestureLabel == "Thumb_Down")
-                {
-                    // Minor
-                    self.audioEngine.setChordMode(chordType: "Minor")
-                }
-                else if (gestureLabel == "Open_Palm")
-                {
-                    // Diminished
-                    self.audioEngine.setChordMode(chordType: "Dim7")
-                }
-                else if (gestureLabel == "Victory")
-                {
-                    // Dominant
-                    self.audioEngine.setChordMode(chordType: "Dom7")
-                }
-                
+
             }
         }
     }

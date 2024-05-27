@@ -124,7 +124,6 @@ class AudioEngine
     {
         switch (chordType)
         {
-            // Chord size includes root note, pitch shifts do not
             case "Major":
                 self.chordSize = 3
                 self.chordPitchShifts = [0, 400, 700]
