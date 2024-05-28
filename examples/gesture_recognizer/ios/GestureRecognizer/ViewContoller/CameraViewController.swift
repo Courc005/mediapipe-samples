@@ -120,35 +120,51 @@ class CameraViewController: UIViewController {
                 self.audioEngine?.voicePlayerStop()
             }
             
-            if (gestureLabel == "Closed_Fist")
+            else if (gestureLabel == "Closed_Fist")
             {
                 self.audioEngine?.stopRecording()
                 self.audioEngine?.voicePlayerPlay()
             }
 
-            if (self.audioEngine?.isPlayingVoice == true)
+            else if (self.audioEngine?.isPlayingVoice == true)
             {
+                let chordName = self.audioEngine.getChordType()
                 switch (gestureLabel)
                 {
                     case "Thumb_Up":
                         // Major
-                        self.audioEngine.setChordMode(chordType: "Major")
+                        if chordName != "Major"
+                        {
+                            self.audioEngine.setChordMode(chordType: "Major")
+                        }
 
                     case "Thumb_Down":
                         // Minor
-                        self.audioEngine.setChordMode(chordType: "Minor")
+                        if chordName != "Minor"
+                        {
+                            self.audioEngine.setChordMode(chordType: "Minor")
+                        }
 
                     case  "Open_Palm":
                         // Diminished
-                        self.audioEngine.setChordMode(chordType: "Dim7")
+                        if chordName != "Dim7"
+                        {
+                            self.audioEngine.setChordMode(chordType: "Dim7")
+                        }
 
                     case "Victory":
                         // Dominant
-                        self.audioEngine.setChordMode(chordType: "Dom7")
+                        if chordName != "Dom7"
+                        {
+                            self.audioEngine.setChordMode(chordType: "Dom7")
+                        }
 
                     default:
                         // Root note only
-                        self.audioEngine.setChordMode(chordType: "root")
+                        if chordName != "root"
+                        {
+                            self.audioEngine.setChordMode(chordType: "root")
+                        }
                 }
 
             }

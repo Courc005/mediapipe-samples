@@ -19,6 +19,7 @@ class AudioEngine
     private var voicePlayer = AVAudioPlayerNode()
 
     // Chord voicing number and cent offsets
+    private var chordName: String = "root"
     private var chordSize: Int
     private var chordPitchShifts: [Float]
 
@@ -133,33 +134,41 @@ class AudioEngine
 
     private func setupPitchShifters()
     {
-        // Pitch up the recoded voice (root is always active)
+        // Connection points to all pitch shifters
+        var connections: [AVAudioConnectionPoint] = Array(repeating: AVAudioConnectionPoint(node: voicePlayer, bus: 0), count: 0)
+
+        avAudioEngine.disconnectNodeOutput(voicePlayer, bus: 0)
         for ix in 0..<MAX_CHORD_VOICES
         {
-            if (ix >= min(self.chordSize, MAX_CHORD_VOICES))
+            // Disconnect existing pitch shifters
+            if (avAudioEngine.attachedNodes.contains(audioUnitTimePitch[ix]))
             {
-                audioUnitTimePitch[ix].pitch = 0
-                if (avAudioEngine.attachedNodes.contains(audioUnitTimePitch[ix]))
-                {
-                    avAudioEngine.detach(audioUnitTimePitch[ix])
-                }
+                avAudioEngine.disconnectNodeInput(audioUnitTimePitch[ix])
+                avAudioEngine.disconnectNodeOutput(audioUnitTimePitch[ix])
             }
-            else
+
+            // Pitch up the recoded voice
+            if (ix < min(self.chordSize, MAX_CHORD_VOICES))
             {
-                audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
                 if (!avAudioEngine.attachedNodes.contains(audioUnitTimePitch[ix]))
                 {
                     avAudioEngine.attach(audioUnitTimePitch[ix])
-                    avAudioEngine.connect(self.voicePlayer, to: audioUnitTimePitch[ix], format: self.voiceIOFormat)
-                    avAudioEngine.connect(audioUnitTimePitch[ix], to: avAudioEngine.mainMixerNode, format: voiceIOFormat)
                 }
+                audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
+                avAudioEngine.connect(audioUnitTimePitch[ix], to: avAudioEngine.mainMixerNode, format: voiceIOFormat)
+                connections.append(AVAudioConnectionPoint(node: audioUnitTimePitch[ix], bus: 0))
             }
+        }
+        if (!connections.isEmpty)
+        {
+            avAudioEngine.connect(voicePlayer, to: connections, fromBus: 0, format: voiceIOFormat)
         }
     }
 
     func setChordMode(chordType: String)
     {
-        chordGenerator(chordType: chordType)
+        self.chordName = chordType
+        chordGenerator(chordType: self.chordName)
         setupPitchShifters()
         voicePlayerPlay()
     }
@@ -296,5 +305,10 @@ class AudioEngine
     func setHarmonyPlayerState(_ state: Bool)
     {
         self.isPlayingHarmonies = state
+    }
+
+    func getChordType() -> String
+    {
+        return self.chordName
     }
 }
