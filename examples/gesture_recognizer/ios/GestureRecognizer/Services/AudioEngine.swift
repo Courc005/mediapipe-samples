@@ -152,13 +152,27 @@ class AudioEngine
 
     private func setupPitchShifters()
     {
-        // Pitch up the recoded voice
-        for ix in 0..<min(self.chordSize-1, MAX_CHORD_VOICES)
+        // Pitch up the recoded voice (root is always active)
+        for ix in 0..<MAX_CHORD_VOICES
         {
-            audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
-            //                harmoniesPlayer[ix].scheduleBuffer(harmoniesBuffer[ix], at: nil) //, options: .loops)
-            //                harmoniesPlayer[ix].scheduleBuffer(voiceBuffer, at: nil) //, options: .loops)
-            //                harmoniesPlayer[ix].play()
+            if (ix >= min(self.chordSize, MAX_CHORD_VOICES))
+            {
+                audioUnitTimePitch[ix].pitch = 0
+                if (avAudioEngine.attachedNodes.contains(audioUnitTimePitch[ix]))
+                {
+                    avAudioEngine.detach(audioUnitTimePitch[ix])
+                }
+            }
+            else
+            {
+                audioUnitTimePitch[ix].pitch = self.chordPitchShifts[ix]
+                if (!avAudioEngine.attachedNodes.contains(audioUnitTimePitch[ix]))
+                {
+                    avAudioEngine.attach(audioUnitTimePitch[ix])
+                    avAudioEngine.connect(self.voicePlayer, to: audioUnitTimePitch[ix], format: self.voiceIOFormat)
+                    avAudioEngine.connect(audioUnitTimePitch[ix], to: avAudioEngine.mainMixerNode, format: voiceIOFormat)
+                }
+            }
         }
     }
 
@@ -166,6 +180,7 @@ class AudioEngine
     {
         chordGenerator(chordType: chordType)
         setupPitchShifters()
+        voicePlayerPlay()
     }
 
     func instantiateMatrixMixer() 
@@ -228,18 +243,19 @@ class AudioEngine
 //        harmoniesMixerArray[0].volume  = 0.2
 //        harmoniesMixerArray[1].volume  = 1.0
 
-        avAudioEngine.connect(voicePlayer, to: mainMixer, format: voiceIOFormat)
+//        avAudioEngine.connect(voicePlayer, to: mainMixer, format: voiceIOFormat)
 
-        for auPitchShift in audioUnitTimePitch
-        {
-            avAudioEngine.attach(auPitchShift)
-            avAudioEngine.connect(voicePlayer, to: auPitchShift, format: voiceIOFormat)
-            avAudioEngine.connect(auPitchShift, to: mainMixer, format: voiceIOFormat)
-        }
-//        avAudioEngine.attach(audioUnitTimePitch[0])
+//        for auPitchShift in audioUnitTimePitch
+//        {
+//            avAudioEngine.attach(auPitchShift)
+//            avAudioEngine.connect(voicePlayer, to: auPitchShift, format: voiceIOFormat)
+//            avAudioEngine.connect(auPitchShift, to: mainMixer, format: voiceIOFormat)
+//        }
+        avAudioEngine.attach(audioUnitTimePitch[0])
 //        avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch[0], format: voiceIOFormat)
-//        avAudioEngine.connect(audioUnitTimePitch[0], to: mainMixer, fromBus: 0, toBus: 0, format: voiceIOFormat)
-//        
+        avAudioEngine.connect(self.voicePlayer, to: audioUnitTimePitch[0], format: voiceIOFormat)
+        avAudioEngine.connect(audioUnitTimePitch[0], to: mainMixer, fromBus: 0, toBus: 0, format: voiceIOFormat)
+//
 //        avAudioEngine.attach(audioUnitTimePitch[1])
 //        avAudioEngine.connect(harmoniesPlayer, to: audioUnitTimePitch[1], format: voiceIOFormat)
 //        avAudioEngine.connect(audioUnitTimePitch[1], to: mainMixer, fromBus: 0, toBus: 1, format: voiceIOFormat)
